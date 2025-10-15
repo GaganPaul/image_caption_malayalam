@@ -52,12 +52,22 @@ except Exception:
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="🖼️ Image Translator", layout="wide")
 
-# Load environment variables
+# Load environment variables and Streamlit secrets for deployment compatibility
 load_dotenv()
 api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    try:
+        api_key = st.secrets.get("GROQ_API_KEY")  # Streamlit Cloud secrets
+    except Exception:
+        api_key = None
 
 if not api_key:
-    st.error("❌ GROQ_API_KEY not found. Please add it to your .env file.")
+    st.error("❌ GROQ_API_KEY not configured.")
+    with st.expander("How to set the API key"):
+        st.markdown(
+            "- In local dev, create a `.env` with `GROQ_API_KEY=YOUR_KEY`\n"
+            "- On Streamlit Cloud, add `GROQ_API_KEY` in Project → Settings → Secrets"
+        )
     st.stop()
 
 # Initialize Groq Vision client securely

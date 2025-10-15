@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import os
 import io, base64
 from streamlit_drawable_canvas import st_canvas
+import numpy as np
 
 # --- Compatibility shim for streamlit-drawable-canvas with newer Streamlit ---
 try:
@@ -105,11 +106,13 @@ if uploaded_file:
     canvas_height = int(image.height * (canvas_width / image.width))
 
     # Draw on canvas
+    bg_image = np.array(image)  # ensure compatibility on Streamlit Cloud
     canvas_result = st_canvas(
         fill_color="rgba(255, 0, 0, 0.15)",
         stroke_width=2,
         stroke_color="#ff4b4b",
-        background_image=image,
+        background_image=bg_image,
+        background_color=None,
         update_streamlit=True,
         height=canvas_height,
         width=canvas_width,

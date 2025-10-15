@@ -6,8 +6,8 @@ sentencepiece
 Pillow
 
 # --- For interactive drawing on images ---
-# Use a patched drawable-canvas compatible with newer Streamlit
-git+https://github.com/bowespublishing/streamlit-drawable-canvas.git
+# Use PyPI build that includes frontend assets; our shim keeps it compatible
+streamlit-drawable-canvas==0.9.3
 
 # --- Environment variable management ---
 python-dotenv

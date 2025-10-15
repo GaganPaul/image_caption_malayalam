@@ -6,7 +6,7 @@ sentencepiece
 Pillow
 
 # --- For interactive drawing on images ---
-streamlit-drawable-canvas
+streamlit-cropper
 
 # --- Environment variable management ---
 python-dotenv

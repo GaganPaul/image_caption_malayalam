@@ -6,48 +6,9 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 import io, base64
-from streamlit_drawable_canvas import st_canvas
+from streamlit_cropper import st_cropper
 
-# --- Compatibility shim for streamlit-drawable-canvas with newer Streamlit ---
-try:
-    import streamlit.elements.image as _st_image_mod
-    if not hasattr(_st_image_mod, "image_to_url"):
-        # Streamlit moved/changed image_to_url signature; provide adapter for (image, width:int)
-        from streamlit.elements.lib import image_utils as _st_image_utils
-        from types import SimpleNamespace
-
-        def _compat_image_to_url(*args, **kwargs):
-            # Old usage from drawable-canvas: image_to_url(image, width:int, image_format=None, clamp=False, channels="RGB", output_format="PNG")
-            # New API: image_to_url(image_data, layout_config, image_format=None, clamp=False, channels="RGB", output_format="PNG")
-            if len(args) == 0:
-                # Fallback to new API directly
-                return _st_image_utils.image_to_url(*args, **kwargs)
-
-            image_data = args[0]
-            width_or_layout = args[1] if len(args) > 1 else None
-            image_format = args[2] if len(args) > 2 else None
-            clamp = args[3] if len(args) > 3 else False
-            channels = args[4] if len(args) > 4 else "RGB"
-            output_format = args[5] if len(args) > 5 else "PNG"
-
-            if hasattr(width_or_layout, "width"):
-                layout_config = width_or_layout
-            else:
-                layout_config = SimpleNamespace(width=width_or_layout)
-
-            return _st_image_utils.image_to_url(
-                image_data,
-                layout_config,
-                image_format,
-                clamp,
-                channels,
-                output_format,
-            )
-
-        _st_image_mod.image_to_url = _compat_image_to_url
-except Exception:
-    # Best-effort; if anything goes wrong, st_canvas may still handle gracefully
-    pass
+# (Removed drawable-canvas compatibility shim)
 
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="🖼️ Image Translator", layout="wide")
@@ -89,49 +50,21 @@ if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     st.subheader("✏️ Draw a rectangle to select region")
 
-    # Determine canvas display size (keep aspect ratio)
-    max_canvas_width = 900
-    canvas_width = min(max_canvas_width, image.width)
-    canvas_height = int(image.height * (canvas_width / image.width))
-
-    # Draw on canvas
-    canvas_result = st_canvas(
-        fill_color="rgba(255, 0, 0, 0.15)",
-        stroke_width=2,
-        stroke_color="#ff4b4b",
-        background_image=image,
-        update_streamlit=True,
-        height=canvas_height,
-        width=canvas_width,
-        drawing_mode="rect",
-        key="canvas",
+    # Use streamlit-cropper for ROI selection; return cropped PIL image directly
+    cropped_preview = st_cropper(
+        image,
+        realtime_update=True,
+        box_color="#ff4b4b",
+        aspect_ratio=None,
+        return_type="image",
+        key="cropper",
     )
 
     cropped_img = None
     rect_info = None
-
-    if canvas_result and canvas_result.json_data is not None:
-        objects = canvas_result.json_data.get("objects", [])
-        rects = [obj for obj in objects if obj.get("type") == "rect"]
-        if rects:
-            last_rect = rects[-1]
-            left = float(last_rect.get("left", 0))
-            top = float(last_rect.get("top", 0))
-            rect_w = float(last_rect.get("width", 0))
-            rect_h = float(last_rect.get("height", 0))
-
-            # Scale from canvas coords to original image coords
-            scale_x = image.width / canvas_width
-            scale_y = image.height / canvas_height
-
-            x0 = max(0, int(left * scale_x))
-            y0 = max(0, int(top * scale_y))
-            x1 = min(image.width, int((left + rect_w) * scale_x))
-            y1 = min(image.height, int((top + rect_h) * scale_y))
-
-            if x1 > x0 and y1 > y0:
-                cropped_img = image.crop((x0, y0, x1, y1))
-                rect_info = (x0, y0, x1, y1)
+    if cropped_preview is not None:
+        # Treat any returned image as a valid selection
+        cropped_img = cropped_preview
 
     if cropped_img is not None:
         st.image(cropped_img, caption="Cropped Region", use_container_width=False)
@@ -152,12 +85,16 @@ if uploaded_file:
 
             with st.spinner("🔍 Generating English description from Groq Vision model..."):
                 response = groq_client.chat.completions.create(
-                    model="llama-3.2-11b-vision-preview",
+                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
                     messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an expert vision analyst. Provide an accurate, thorough, and objective description of the provided image region in 2-4 sentences.",
+                        },
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": "Describe this image region in one short sentence."},
+                                {"type": "text", "text": "Please describe this selected image region in depth."},
                                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_base64}"}}
                             ],
                         }
@@ -165,9 +102,21 @@ if uploaded_file:
                 )
 
                 try:
-                    description = response.choices[0].message["content"][0]["text"]
+                    content = response.choices[0].message.content
+                    if isinstance(content, list):
+                        parts = []
+                        for part in content:
+                            if isinstance(part, dict) and "text" in part:
+                                parts.append(part["text"])
+                            elif isinstance(part, str):
+                                parts.append(part)
+                        description = " "+" ".join(parts).strip()
+                    else:
+                        description = str(content).strip()
                 except Exception as e:
                     st.error(f"❌ Failed to parse Groq response: {e}")
+                    with st.expander("Show raw Groq response"):
+                        st.write(response)
                     st.stop()
 
             st.session_state["description"] = description

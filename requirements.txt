@@ -1,0 +1,21 @@
+# --- Core dependencies ---
+streamlit
+torch
+transformers
+sentencepiece
+Pillow
+
+# --- For interactive drawing on images ---
+streamlit-drawable-canvas
+
+# --- Environment variable management ---
+python-dotenv
+
+# --- Groq API SDK ---
+groq
+
+# --- Utility dependencies ---
+requests
+tqdm
+accelerate
+safetensors

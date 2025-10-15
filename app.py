@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 import os
 import io, base64
 from streamlit_drawable_canvas import st_canvas
-import numpy as np
 
 # --- Compatibility shim for streamlit-drawable-canvas with newer Streamlit ---
 try:
@@ -53,22 +52,12 @@ except Exception:
 # ---------------- CONFIG ----------------
 st.set_page_config(page_title="🖼️ Image Translator", layout="wide")
 
-# Load environment variables and Streamlit secrets for deployment compatibility
+# Load environment variables
 load_dotenv()
 api_key = os.getenv("GROQ_API_KEY")
-if not api_key:
-    try:
-        api_key = st.secrets.get("GROQ_API_KEY")  # Streamlit Cloud secrets
-    except Exception:
-        api_key = None
 
 if not api_key:
-    st.error("❌ GROQ_API_KEY not configured.")
-    with st.expander("How to set the API key"):
-        st.markdown(
-            "- In local dev, create a `.env` with `GROQ_API_KEY=YOUR_KEY`\n"
-            "- On Streamlit Cloud, add `GROQ_API_KEY` in Project → Settings → Secrets"
-        )
+    st.error("❌ GROQ_API_KEY not found. Please add it to your .env file.")
     st.stop()
 
 # Initialize Groq Vision client securely
@@ -86,7 +75,7 @@ def load_translation_pipeline():
     """Load and cache the translation pipeline."""
     translator = pipeline(
         "translation",
-        model="kurianbenoy/kde_en_ml_translation_model",
+        model="Helsinki-NLP/opus-mt-en-ml",
         device=0 if DEVICE == "cuda" else -1,
     )
     return translator
@@ -106,13 +95,11 @@ if uploaded_file:
     canvas_height = int(image.height * (canvas_width / image.width))
 
     # Draw on canvas
-    bg_image = np.array(image)  # ensure compatibility on Streamlit Cloud
     canvas_result = st_canvas(
         fill_color="rgba(255, 0, 0, 0.15)",
         stroke_width=2,
         stroke_color="#ff4b4b",
-        background_image=bg_image,
-        background_color=None,
+        background_image=image,
         update_streamlit=True,
         height=canvas_height,
         width=canvas_width,
@@ -153,20 +140,6 @@ if uploaded_file:
     else:
         st.info("Draw a rectangle on the image to select a region.")
 
-    # System prompt for detailed captioning
-    default_system_prompt = (
-        "You are an expert vision analyst. Provide an accurate, thorough, and objective "
-        "description of the provided image region. Include salient objects, their attributes "
-        "(colors, shapes, textures), spatial relationships, visible text (OCR-like), and any "
-        "relevant context. Avoid speculation beyond visible evidence. Use clear prose in 2-4 sentences."
-    )
-    system_prompt = st.text_area(
-        "✍️ System prompt (optional, used for in-depth descriptions)",
-        value=st.session_state.get("system_prompt", default_system_prompt),
-        help="Customize the behavior and level of detail for the description.",
-    )
-    st.session_state["system_prompt"] = system_prompt
-
     # Step 1: Generate English description using Groq
     if st.button("🧠 Generate English Description"):
         target_img = st.session_state.get("cropped_img")
@@ -179,16 +152,12 @@ if uploaded_file:
 
             with st.spinner("🔍 Generating English description from Groq Vision model..."):
                 response = groq_client.chat.completions.create(
-                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                    model="llama-3.2-11b-vision-preview",
                     messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt,
-                        },
                         {
                             "role": "user",
                             "content": [
-                                {"type": "text", "text": "Please describe the selected image region in-depth as instructed."},
+                                {"type": "text", "text": "Describe this image region in one short sentence."},
                                 {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_base64}"}}
                             ],
                         }
@@ -196,22 +165,9 @@ if uploaded_file:
                 )
 
                 try:
-                    # Groq SDK returns objects; message.content is usually a string
-                    description = response.choices[0].message.content
-                    if isinstance(description, list):
-                        # Defensive: flatten any content parts with 'text'
-                        parts = []
-                        for part in description:
-                            if isinstance(part, dict) and "text" in part:
-                                parts.append(part["text"])
-                            elif isinstance(part, str):
-                                parts.append(part)
-                        description = " ".join(parts)
-                    description = (description or "").strip()
+                    description = response.choices[0].message["content"][0]["text"]
                 except Exception as e:
                     st.error(f"❌ Failed to parse Groq response: {e}")
-                    with st.expander("Show raw Groq response"):
-                        st.write(response)
                     st.stop()
 
             st.session_state["description"] = description

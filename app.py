@@ -89,7 +89,7 @@ if uploaded_file:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are an expert vision analyst. Provide an accurate, thorough, and objective description of the provided image region in 2-4 sentences.",
+                            "content": "You are an expert vision analyst. Provide an accurate, thorough, and objective description of the provided image region in 2-4 sentences, and don't add bullet point or numbers or anything else just give me the caption in simple english ",
                         },
                         {
                             "role": "user",

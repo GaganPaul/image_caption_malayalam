@@ -12,8 +12,6 @@ try:
     import sacrebleu  # type: ignore
 except Exception:  # pragma: no cover
     sacrebleu = None
-
-
 def read_lines_with_optional_refs(input_path: Path, limit: Optional[int] = None) -> Tuple[List[str], List[Optional[str]]]:
     """Read dataset file. Supports two formats:
     - Single column: English source per line (no references available)
@@ -102,7 +100,7 @@ def main():
         raise SystemExit("No inputs found in the provided file")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    new_model = "kurianbenoy/kde_en_ml_translation_model"
+    new_model = "facebook/nllb-200-1.3B"
     baseline_model = "Helsinki-NLP/opus-mt-en-ml"
 
     print(f"Running on {len(sources)} examples (device={device})…")

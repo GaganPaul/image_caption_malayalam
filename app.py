@@ -33,11 +33,12 @@ st.caption("Select a region on the image manually, generate its English descript
 # ---------------- Load Translation Model ----------------
 @st.cache_resource
 def load_translation_pipeline():
-    """Load and cache the translation pipeline."""
     translator = pipeline(
         "translation",
-        model="Helsinki-NLP/opus-mt-en-ml",
+        model="facebook/nllb-200-1.3B",
         device=0 if DEVICE == "cuda" else -1,
+        src_lang="eng_Latn",
+        tgt_lang="mal_Mlym"
     )
     return translator
 
@@ -89,7 +90,7 @@ if uploaded_file:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are an expert vision analyst. Provide an accurate, thorough, and objective description of the provided image region in 2-4 sentences, and don't add bullet point or numbers or anything else just give me the caption in simple english ",
+                            "content": "You are an expert vision analyst. Provide an accurate, thorough, and objective description of the provided image region in a paragraph sentences, and don't add bullet point or numbers or anything else just give me the text in simple english ",
                         },
                         {
                             "role": "user",

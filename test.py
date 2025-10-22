@@ -48,13 +48,26 @@ def batched(iterable: List[str], batch_size: int) -> List[List[str]]:
 
 def run_translations(sources: List[str], model_name: str, device: str, batch_size: int = 16) -> List[str]:
     device_id = 0 if device == "cuda" else -1
-    translator = pipeline("translation", model=model_name, device=device_id)
+
+    # Add src_lang and tgt_lang only for facebook/nllb-200-1.3B
+    if model_name == "facebook/nllb-200-1.3B":
+        translator = pipeline(
+            "translation",
+            model=model_name,
+            device=device_id,
+            src_lang="eng_Latn",
+            tgt_lang="mal_Mlym"
+        )
+    else:
+        translator = pipeline("translation", model=model_name, device=device_id)
+
     outputs: List[str] = []
     for chunk in tqdm(batched(sources, batch_size), total=(len(sources) + batch_size - 1) // batch_size, desc=f"{model_name}"):
         preds = translator(chunk)
         for item in preds:
             outputs.append(item["translation_text"])
     return outputs
+
 
 
 def compute_metrics(hypotheses: List[str], references: List[Optional[str]]) -> dict:
